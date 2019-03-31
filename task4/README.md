@@ -7,5 +7,5 @@
   * Run the binary `./main` with necessary parameters via flags.
   * To view allowable flags run the binary without any.
 
-* e.g. `./main -url epam.com -url stackoverflow.com -num 3 -timeout 1.5
+* e.g. `./main -url epam.com -url stackoverflow.com -num 3 -timeout 0.5
 `
