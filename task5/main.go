@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -13,17 +14,17 @@ import (
 const (
 	request_num             = 1
 	max_request_num         = 1000
-	time_out        float64 = 3
-	max_time_out    float64 = 30
+	time_out        float64 = 1
+	max_time_out    float64 = 10
 	nanoToMilli             = float64(1000000)
 )
 
 var (
-	average, min, max float64
-	tardyResponses    int
-	total             time.Duration
-	responseDurations []time.Duration
-	parameters        struct {
+	average, min, max                float64
+	tardyResponses, responseQuantity int
+	total                            time.Duration
+	responseDurations                []time.Duration
+	parameters                       struct {
 		urls            flags
 		requestQuantity int
 		timeOut         float64
@@ -76,7 +77,11 @@ func main() {
 		}
 	}
 
-	responseQuantity := len(responseDurations)
+	if total == 0 || responseQuantity == 0 {
+		fmt.Println("No successful responses were received.")
+		return
+	}
+
 	average = round(float64(total.Nanoseconds())/float64(responseQuantity)/
 		nanoToMilli, 0.001)
 	min, max = getMinMax()
@@ -98,18 +103,23 @@ func letsGo(url string, done chan bool) {
 		"POST", uri, bytes.NewBuffer([]byte(`{"title":"Hello there!"}`)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Custom-Header", "MyHeader")
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: time.Duration(parameters.timeOut * math.Pow10(9)),
+	}
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		fmt.Println("Caught net.Error with a timeout:\n", err)
+	}
 	responseStart := time.Now()
 	resp, err := client.Do(req)
 	responseDuration := time.Since(responseStart)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		fmt.Printf("Can't process the request '%s': status %d \n",
-			req.Host, resp.StatusCode)
+	if responseDuration <= time.Duration(
+		parameters.timeOut*math.Pow10(9)) &&
+		resp.StatusCode == http.StatusOK && err == nil {
+		responseQuantity++
+		total += responseDuration
+		responseDurations = append(responseDurations, responseDuration)
 	}
 	done <- true
-	time.Sleep(time.Duration(parameters.timeOut * math.Pow10(9)))
-	total += responseDuration
-	responseDurations = append(responseDurations, responseDuration)
 }
 
 func round(x, unit float64) float64 {
@@ -144,9 +154,9 @@ func printResults() {
 
 	fmt.Printf("\n------------------Results------------------\n"+
 		"-> total work time:\t\t%8.3f ms\n"+
-		"-> average response duration:\t%8v ms\n"+
-		"-> max response duration:\t%8v ms\n"+
-		"-> min response duration:\t%8v ms\n"+
+		"-> average response duration:\t%8.8v ms\n"+
+		"-> max response duration:\t%8.8v ms\n"+
+		"-> min response duration:\t%8.8v ms\n"+
 		"-> tardy responses amount:\t%8v\n",
 		round(float64(total)/nanoToMilli, 0.001),
 		round(float64(average), 0.001),
