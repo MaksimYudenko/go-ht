@@ -25,10 +25,10 @@ var (
 	total                            time.Duration
 	responseDurations                []time.Duration
 	parameters                       struct {
-		urls            flags
-		requestQuantity int
-		timeOut         float64
-	}
+										 urls            flags
+										 requestQuantity int
+										 timeOut         float64
+									 }
 )
 
 type flags []string
